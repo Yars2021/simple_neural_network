@@ -130,8 +130,8 @@ calculate_layers([Prev | [Current | Tail]]) ->
 % Вычисления для сети
 calculate(Net) ->
     #neural_net{layers = [InputLayer | OtherLayers]} = LoadedInputNet = transfer_inputs(Net),
-    LoadedInputNet#neural_net{layers = [InputLayer | calculate_layers([InputLayer | OtherLayers])]}.
+    transfer_output(LoadedInputNet#neural_net{layers = [InputLayer | calculate_layers([InputLayer | OtherLayers])]}).
 
 
 run_test(Config) ->
-    get_alpha(transfer_output(calculate(set_expected(set_input(create_net(Config), [[0, 1], [0, 1]]), [0, 1])))).
+    get_alpha(calculate(set_expected(set_input(create_net(Config), [[0, 1], [0, 1]]), [0, 1]))).
