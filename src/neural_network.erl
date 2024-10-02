@@ -1,12 +1,12 @@
 -module(neural_network).
 
--export([activation/1,
-         set_input/2,
+-export([set_input/2,
          set_expected/2,
-         get_error/1,
          get_alpha/1,
-         clear_net/1,
-         run_test/0]).
+         calculate/1,
+         create_net/1,
+         set_weights/2,
+         run_test/1]).
 
 -define(MAX_ALPHA, 1.0).
 -define(MIN_ALPHA, 0.0).
@@ -14,64 +14,124 @@
 
 
 -record(neural_net, {
-    input_layer = [],
-    output_layer = [],
-    hidden_layers = [],
-    weights = [],
+    input = [],
+    layers = [],
+    output = [],
     expected = [],
-    aplha = 0,
+    alpha = 0,
     delta = 0
 }).
+
+
+% Создать нейронную сеть по конфигурации
+create_net([InputLayerConfig | LayersConfig]) ->
+    #neural_net{
+        input = [],
+        layers = [create_input_layer(InputLayerConfig) | create_normal_layers([InputLayerConfig | LayersConfig])],
+        output = [],
+        expected = [],
+        alpha = 0,
+        delta = 0
+    }.
+
+
+create_input_layer(0) -> [];
+create_input_layer(N) -> [{0, []} | create_input_layer(N - 1)].
+
+
+create_normal_layer(0, _) -> [];
+create_normal_layer(N, P) ->
+    [{0, [{Src, 2 * rand:uniform() - 1} || Src <- lists:seq(1, P)]} | create_normal_layer(N - 1, P)].
+
+
+create_normal_layers([LastHiddenLayer | [OutputLayer | []]]) ->
+    [create_normal_layer(OutputLayer, LastHiddenLayer)];
+
+create_normal_layers([Prev | [Current | Tail]]) ->
+    [create_normal_layer(Current, Prev) | create_normal_layers([Current | Tail])].
+
+
+% Задать веса связям нейронной сети
+set_weights(Net, [])
+
+
+% Установка входных данных
+set_input(#neural_net{} = Net, Input) ->
+    Net#neural_net{input = lists:foldl(fun(Line, Acc) -> Acc ++ Line end, [], Input)}.
+
+
+% Установка ожидаемых значений
+set_expected(#neural_net{} = Net, Expected) ->
+    Net#neural_net{expected = Expected}.
+
+
+% Перенос входного вектора на первый (входной) слой нейросети
+transfer_inputs(#neural_net{input = Input, layers = [InputLayer | OtherLayers]} = Net) ->
+    Net#neural_net{layers = [transfer_inputs(InputLayer, Input) | OtherLayers]}.
+
+
+transfer_inputs([], []) -> [];
+transfer_inputs([_ | InputLayerTail], [Input | InputTail]) ->
+    [{Input, []} | transfer_inputs(InputLayerTail, InputTail)].
+
+
+% Перенос последнего (выходного) слоя нейросети на выходной вектор
+transfer_output(#neural_net{layers = Layers} = Net) ->
+    Net#neural_net{layers = Layers, output = transfer_output(Layers, [])}.
+
+transfer_output([[]], Acc) -> lists:reverse(Acc);
+transfer_output([[{Output, _} | Tail]], Acc) ->
+    transfer_output([Tail], [Output | Acc]);
+
+transfer_output([_ | Tail], Acc) ->
+    transfer_output(Tail, Acc).
 
 
 % Функция активации
 activation(X) -> 1 / (1 + math:exp(-X)).
 
 
-% Установка входных данных
-set_input(#neural_net{} = Net, Input) ->
-    Net#neural_net{input_layer = lists:foldl(fun(Line, Acc) -> Acc ++ Line end, [], Input)}.
-
-
-% Установка ожидаемых значений
-set_expected(#neural_net{} = Net, Expected) ->
-    Net#neural_net{expected = Expected}
-
-
 % Подсчет ошибки
-get_error(#neural_net{output_layer = OutputLayer, expected = Expected}) ->
-    get_error(OutputLayer, Expected, 0).
+get_error(#neural_net{output = Output, expected = Expected}) ->
+    get_error(Output, Expected, 0).
 
 get_error([], [], Acc) -> Acc / 2;
 get_error([Output | OutputTail], [Expected | ExpectedTail], Acc) ->
-    get_error(OutputTail, ExpectedTail, Acc + math:abs(Output - Expected)).
+    get_error(OutputTail, ExpectedTail, Acc + abs(Output - Expected)).
 
 
 % Пересчет alpha
-get_alpha(#neural_net{output_layer = OutputLayer, expected = Expected}) ->
-    Net#neural_net{alpha = 2 * math:abs(get_error(Net)) / length(OutputLayer) * (?MAX_ALPHA - ?MIN_ALPHA) + ?MIN_ALPHA}.
+get_alpha(#neural_net{output = Output} = Net) ->
+    Net#neural_net{alpha = 2 * abs(get_error(Net)) / length(Output) * (?MAX_ALPHA - ?MIN_ALPHA) + ?MIN_ALPHA}.
 
 
-% Очистка значений
-clear_net(#neural_net{
-    input_layer = InputLayer, 
-    output_layer = OutputLayer,
-    hidden_layers = HiddenLayers,
-    weights = Weights,
-    expected = Expected,
-    alpha = Alpha,
-    delta = Delta
-}) ->
-    Net#neural_net{
-        input_layer = lists:map(fun(_) -> 0 end, InputLayer),
-        output_layer = lists:map(fun(_) -> 0 end, OutputLayer),
-        hidden_layers = lists:map(fun(Layer) -> lists:map(fun({_, _}) -> {0, 0} end, Layer) end, HiddenLayers),
-        weights = lists:map(fun({Src, Dst}) -> {Src, lists:map(fun({Node, _}) -> {Node, 0} end, Dst)} end, Weights),
-        alpha = 0,
-        delta = 0
-    }.
+% Вычисления для нейрона
+calculate_neuron({_, Connections}, PrevLayer) -> {calculate_neuron(Connections, PrevLayer, 0), Connections}.
+
+calculate_neuron([], _, Acc) -> activation(Acc);
+calculate_neuron([{Src, Weight} | ConnectionsTail], PrevLayer, Acc) ->
+    {Output, _} = lists:nth(Src, PrevLayer),
+    calculate_neuron(ConnectionsTail, PrevLayer, Acc + Weight * Output).
 
 
-run_test() ->
-    Net = #neural_net{input_layer = []},
-    set_input(Net, [[0, 1, 0], [0, 1, 0], [1, 1, 1]]).
+% Вычисления для слоя
+calculate_layer([], _) -> [];
+calculate_layer([Neuron | CurrTail], PrevLayer) ->
+    [calculate_neuron(Neuron, PrevLayer) | calculate_layer(CurrTail, PrevLayer)].
+
+
+% Вычисление для нескольких слоев. Первый должен быть входным
+calculate_layers([LastHiddenLayer | [OutputLayer | []]]) -> [calculate_layer(OutputLayer, LastHiddenLayer)];
+calculate_layers([Prev | [Current | Tail]]) ->
+    NewCurrent = calculate_layer(Current, Prev),
+    [NewCurrent | calculate_layers([NewCurrent | Tail])].
+
+
+% Вычисления для сети
+calculate(Net) ->
+    #neural_net{layers = [InputLayer | OtherLayers]} = LoadedInputNet = transfer_inputs(Net),
+    LoadedInputNet#neural_net{layers = [InputLayer | calculate_layers([InputLayer | OtherLayers])]}.
+
+
+run_test(Config) ->
+    get_alpha(transfer_output(calculate(set_expected(set_input(create_net(Config), [[0, 1], [0, 1]]), [0, 1])))).
