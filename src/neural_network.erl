@@ -2,10 +2,11 @@
 
 -export([set_input/2,
          set_expected/2,
+         set_weights/2,
+         get_weights/1,
          get_alpha/1,
          calculate/1,
          create_net/1,
-         set_weights/2,
          run_test/1]).
 
 -define(MAX_ALPHA, 1.0).
@@ -51,10 +52,6 @@ create_normal_layers([Prev | [Current | Tail]]) ->
     [create_normal_layer(Current, Prev) | create_normal_layers([Current | Tail])].
 
 
-% Задать веса связям нейронной сети
-set_weights(Net, [])
-
-
 % Установка входных данных
 set_input(#neural_net{} = Net, Input) ->
     Net#neural_net{input = lists:foldl(fun(Line, Acc) -> Acc ++ Line end, [], Input)}.
@@ -63,6 +60,14 @@ set_input(#neural_net{} = Net, Input) ->
 % Установка ожидаемых значений
 set_expected(#neural_net{} = Net, Expected) ->
     Net#neural_net{expected = Expected}.
+
+
+% Установить веса найронной сети
+set_weights(#neural_net{} = Net, Weights) -> Net#neural_net{layers = Weights}.
+
+
+% Получить данные о весах нейросети
+get_weights(#neural_net{layers = Layers}) -> Layers.
 
 
 % Перенос входного вектора на первый (входной) слой нейросети
@@ -130,8 +135,8 @@ calculate_layers([Prev | [Current | Tail]]) ->
 % Вычисления для сети
 calculate(Net) ->
     #neural_net{layers = [InputLayer | OtherLayers]} = LoadedInputNet = transfer_inputs(Net),
-    transfer_output(LoadedInputNet#neural_net{layers = [InputLayer | calculate_layers([InputLayer | OtherLayers])]}).
+    LoadedInputNet#neural_net{layers = [InputLayer | calculate_layers([InputLayer | OtherLayers])]}.
 
 
 run_test(Config) ->
-    get_alpha(calculate(set_expected(set_input(create_net(Config), [[0, 1], [0, 1]]), [0, 1]))).
+    get_alpha(transfer_output(calculate(set_expected(set_input(create_net(Config), [[0, 1], [0, 1]]), [0, 1])))).
