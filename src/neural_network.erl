@@ -150,11 +150,18 @@ calc_output_deltas([Output | OutputTail]], [Expected | ExpectedTail]) ->
     [Output * (1 - Output) * (Expected - Output) | calc_output_deltas(OutputTail, ExpectedTail)].
 
 
-calc_layer_delta([], _) -> [];
-calc_layer_delta([{Output, Connections} | Tail], NextLayerDeltas) ->
+calc_layer_deltas([], _) -> [];
+calc_layer_deltas([{Output, Connections} | Tail], NextLayerDeltas) ->
     [Output * (1 - Output) * lists:foldl(fun({Src, Weight}, Acc) ->
         Acc + Weight * lists:nth(Src, NextLayerDeltas)
     end, 0, Connections) | calc_layer_delta(Tail, NextLayerDeltas)].
+
+
+calc_network_deltas(ReversedLayers) -> calc_network_
+
+calc_network_deltas([]) -> [];
+calc_network_deltas([Layer | ReversedTail]) ->
+    [calc_layer_deltas(Layer, ) | calc_network_deltas(ReversedTail)]
 
 
 run_test(Config, Input, Expected) ->
