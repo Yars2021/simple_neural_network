@@ -7,7 +7,8 @@
          get_alpha/1,
          calculate/1,
          create_net/1,
-         run_test/1]).
+         adjust_weights/1,
+         run_test/3]).
 
 -define(MAX_ALPHA, 1.0).
 -define(MIN_ALPHA, 0.0).
@@ -19,8 +20,8 @@
     layers = [],
     output = [],
     expected = [],
-    alpha = 0,
-    delta = 0
+    delta = [],
+    alpha = 0
 }).
 
 
@@ -31,8 +32,8 @@ create_net([InputLayerConfig | LayersConfig]) ->
         layers = [create_input_layer(InputLayerConfig) | create_normal_layers([InputLayerConfig | LayersConfig])],
         output = [],
         expected = [],
-        alpha = 0,
-        delta = 0
+        delta = [],
+        alpha = 0
     }.
 
 
@@ -138,5 +139,23 @@ calculate(Net) ->
     LoadedInputNet#neural_net{layers = [InputLayer | calculate_layers([InputLayer | OtherLayers])]}.
 
 
-run_test(Config) ->
-    get_alpha(transfer_output(calculate(set_expected(set_input(create_net(Config), [[0, 1], [0, 1]]), [0, 1])))).
+% Пересчитать веса нейросети
+adjust_weights(#neural_net{layers = Layers, output = Output, expected = Expected, delta = Delta, alpha = Alpha}) ->
+    [_, OtherLayers] = lists:reverse(Layers),
+    OutputDeltas = calc_output_deltas(Output, Expected).
+
+
+calc_output_deltas([], []) -> [];
+calc_output_deltas([Output | OutputTail]], [Expected | ExpectedTail]) ->
+    [Output * (1 - Output) * (Expected - Output) | calc_output_deltas(OutputTail, ExpectedTail)].
+
+
+calc_layer_delta([], _) -> [];
+calc_layer_delta([{Output, Connections} | Tail], NextLayerDeltas) ->
+    [Output * (1 - Output) * lists:foldl(fun({Src, Weight}, Acc) ->
+        Acc + Weight * lists:nth(Src, NextLayerDeltas)
+    end, 0, Connections) | calc_layer_delta(Tail, NextLayerDeltas)].
+
+
+run_test(Config, Input, Expected) ->
+    get_alpha(transfer_output(calculate(set_expected(set_input(create_net(Config), Input), Expected)))).
