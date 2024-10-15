@@ -4,7 +4,7 @@ double func_sum(double x, double acc) {
     return acc + x;
 }
 
-double func_max_index(double x, double acc) {
+double func_max(double x, double acc) {
     return (acc > x) ? acc : x;
 }
 
@@ -212,14 +212,42 @@ void backtrack(NeuralNet_t *net) {
             set_value(net->deltas[i], j, get_value(net->layers[i + 1], j) * (1 - get_value(net->layers[i + 1], j)) * sum);
         }
     }
+
+    for (size_t i = 0; i < net->num_of_layers; i++) {
+        for (size_t j = 0; j < net->layers[i]->size; j++) {
+            for (size_t k = 0; k < net->weihts[i][j]->size; k++) {
+                set_value(net->weights[i][j], k, get_value(net->weights[i][j], k) + net->alpha * get_value(net->deltas[i], j) * get_value(net->layers[i], k));
+                weight[layer][output][input] += alpha * delta[layer][output] * layers[layer][input];
+            }
+        }
+    }
 }
 
 void train(NeuralNet_t *net) {
     if (!net) return;
 
+    clear(net);
+    calculate(net);
+    net->alpha = get_alpha(net);
+
+    if (get_error(net) > MAX_ERROR) {
+        backtrack(net);
+    }
 }
 
 size_t test(NeuralNet_t *net) {
     if (!net) return;
 
+    clear(net);
+    calculate(net);
+    
+    size_t ans = 0;
+
+    for (size_t i = 0; i < net->layers[net->num_of_layers - 1]->size; i++) {
+        if (get_value(net->layers[net->num_of_layers - 1], ans) < get_value(net->layers[net->num_of_layers - 1], i)) {
+            ans = i;
+        }
+    }
+
+    return ans;
 }
