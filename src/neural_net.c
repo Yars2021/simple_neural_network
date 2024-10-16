@@ -59,10 +59,34 @@ void print_vector(DoubleVector_t *vector) {
     if (!vector) return;
 
     for (size_t i = 0; i < vector->size; i++) {
-        printf("%f\t", vector->values[i]);
+        printf("%lf\t", vector->values[i]);
     }
 
     printf("\n");
+}
+
+void read_test(DoubleVector_t *input, DoubleVector_t *expected, char *filepath) {
+    if (!input || !expected || !filepath) return;
+
+    FILE *file = fopen(filepath, "r");
+
+    if (!file) return;
+
+    size_t width, height, exp_size;
+
+    fscanf(file, "%zd %zd %zd\n", &width, &height, &exp_size);
+
+    for (size_t i = 0; i < height; i++) {
+        for (size_t j = 0; j < width; j++) {
+            fscanf(file, "%lf", &(input->values[i * width + j]));
+        }
+    }
+
+    for (size_t i = 0; i < exp_size; i++) {
+        fscanf(file, "%lf", &(expected->values[i]));
+    }
+
+    fclose(file);
 }
 
 NeuralNet_t *create_neural_net(size_t num_of_layers, size_t *layer_sizes) {
@@ -82,14 +106,14 @@ NeuralNet_t *create_neural_net(size_t num_of_layers, size_t *layer_sizes) {
         net->deltas[i] = create_double_vector(layer_sizes[i]);
     }
 
-    srand(time(NULL));
+    srandom(time(NULL));
 
     for (size_t i = 0; i < num_of_layers - 1; i++) {
         net->weights[i] = (DoubleVector_t**)malloc(net->layers[i]->size * sizeof(DoubleVector_t*));
         for (size_t j = 0; j < net->layers[i + 1]->size; j++) {
             net->weights[i][j] = create_double_vector(net->layers[i + 1]->size);
-            for (size_t k = 0; k < net->layers[i + 1]; k++) {
-                set_value(net->weights[i][j], k, ((float)rand() / (float)(RAND_MAX)) * 2 - 1);
+            for (size_t k = 0; k < net->layers[i + 1]->size; k++) {
+                set_value(net->weights[i][j], k, ((float)random() / (float)(RAND_MAX)) * 2 - 1);
             }
         }
     }
@@ -97,22 +121,22 @@ NeuralNet_t *create_neural_net(size_t num_of_layers, size_t *layer_sizes) {
     return net;
 }
 
-free_neural_net(NeuralNet_t *net) {
+void free_neural_net(NeuralNet_t *net) {
     if (!net) return;
 
     net->alpha = 0.0;
     free_double_vector(net->expected);
-    
-    for (size_t i = 0; i < net->num_of_layers; i++) {
-        free_double_vector(net->layers[i]);
-        free_double_vector(net->deltas[i]);
-    }
 
     for (size_t i = 0; i < net->num_of_layers - 1; i++) {
         for (size_t j = 0; j < net->layers[i]->size; j++) {
             free_double_vector(net->weights[i][j]);
         }
         free(net->weights[i]);
+    }
+
+    for (size_t i = 0; i < net->num_of_layers; i++) {
+        free_double_vector(net->layers[i]);
+        free_double_vector(net->deltas[i]);
     }
 
     net->num_of_layers = 0; 
@@ -143,15 +167,14 @@ void set_weights(NeuralNet_t *net, DoubleVector_t ***weights) {
     if (!net || !weights) return;
 
     for (size_t i = 0; i < net->num_of_layers - 1; i++) {
-        net->weights[i] = (DoubleVector_t**)malloc(net->layers[i]->size * sizeof(DoubleVector_t*));
         for (size_t j = 0; j < net->layers[i + 1]->size; j++) {
-            net->weights[i][j] = create_double_vector(net->layers[i + 1]->size);
-            for (size_t k = 0; k < net->layers[i + 1]; k++) {
+            for (size_t k = 0; k < net->layers[i + 1]->size; k++) {
                 set_value(net->weights[i][j], k, get_value(weights[i][j], k));
             }
         }
     }
 }
+
 
 void clear(NeuralNet_t *net) {
     if (!net) return;
@@ -192,7 +215,7 @@ double get_error(NeuralNet_t *net) {
 double get_alpha(NeuralNet_t *net) {
     if (!net) return 0.0;
 
-    return (2 * get_error(net) / net->layers[net->num_of_layers - 1]->size) * (MAX_ALPHA - MIN_ALPHA) + MIN_ALPHA;
+    return (2 * get_error(net) / (double)(net->layers[net->num_of_layers - 1]->size)) * (MAX_ALPHA - MIN_ALPHA) + MIN_ALPHA;
 }
 
 void backtrack(NeuralNet_t *net) {
@@ -200,24 +223,24 @@ void backtrack(NeuralNet_t *net) {
 
     for (size_t i = 0; i < net->layers[net->num_of_layers - 1]->size; i++) {
         double t = get_value(net->expected, i), y = get_value(net->layers[net->num_of_layers - 1], i);
-        set_value(net->deltas[net->num_of_layers - 2], i, y * (1 - y) * (t - y));
+        set_value(net->deltas[net->num_of_layers - 1], i, y * (1 - y) * (t - y));
     }
 
-    for (size_t i = net->num_of_layers - 3; i > 0; i--) {
-        for (size_t j = 0; j < net->layers[i + 1]; j++) {
-            double sum = 0;
-            for (size_t k = 0; k < net->layers[i + 2]->size; k++) {
-                sum += get_value(net->deltas[i + 1], k) * get_value(net->weights[i + 1][k], j);
+    for (int i = (int)net->num_of_layers - 2; i >= 0; i--) {
+        for (size_t j = 0; j < net->layers[i]->size; j++) {
+            double y = get_value(net->layers[i], j), sum = 0;
+            for (size_t k = 0; k < net->layers[i + 1]->size; k++) {
+                sum += get_value(net->deltas[i + 1], k) * get_value(net->weights[i][j], k);
             }
-            set_value(net->deltas[i], j, get_value(net->layers[i + 1], j) * (1 - get_value(net->layers[i + 1], j)) * sum);
+            set_value(net->deltas[i], j, y * (1 - y) * sum);
         }
     }
 
-    for (size_t i = 0; i < net->num_of_layers; i++) {
+    for (size_t i = 0; i < net->num_of_layers - 1; i++) {
         for (size_t j = 0; j < net->layers[i]->size; j++) {
-            for (size_t k = 0; k < net->weihts[i][j]->size; k++) {
-                set_value(net->weights[i][j], k, get_value(net->weights[i][j], k) + net->alpha * get_value(net->deltas[i], j) * get_value(net->layers[i], k));
-                weight[layer][output][input] += alpha * delta[layer][output] * layers[layer][input];
+            for (size_t k = 0; k < net->layers[i + 1]->size; k++) {
+                double y = (i == 0) ? get_value(net->layers[0], j) : get_value(net->layers[i - 1], j);
+                set_value(net->weights[i][j], k, get_value(net->weights[i][j], k) + net->alpha * get_value(net->deltas[i], j) * y);
             }
         }
     }
@@ -236,7 +259,7 @@ void train(NeuralNet_t *net) {
 }
 
 size_t test(NeuralNet_t *net) {
-    if (!net) return;
+    if (!net) return 0;
 
     clear(net);
     calculate(net);

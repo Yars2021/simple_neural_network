@@ -1,9 +1,10 @@
 #ifndef __NEURAL_NET
 #define __NEURAL_NET
 
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <time.h>
 
 #define MIN_ALPHA   0.1
 #define MAX_ALPHA   0.3
@@ -20,6 +21,7 @@ double get_value(DoubleVector_t *vector, size_t index);
 void set_value(DoubleVector_t *vector, size_t index, double value);
 double fold(DoubleVector_t *vector, double (*func)(double, double), double acc_start);
 void print_vector(DoubleVector_t *vector);
+void read_test(DoubleVector_t *input, DoubleVector_t *expected, char *filepath);
 
 typedef struct {
     double alpha;
@@ -31,7 +33,7 @@ typedef struct {
 } NeuralNet_t;
 
 NeuralNet_t *create_neural_net(size_t num_of_layers, size_t *layer_sizes);
-free_neural_net(NeuralNet_t *net);
+void free_neural_net(NeuralNet_t *net);
 void set_input(NeuralNet_t *net, DoubleVector_t *input);
 void set_expected(NeuralNet_t *net, DoubleVector_t *expected);
 void set_weights(NeuralNet_t *net, DoubleVector_t ***weights);

@@ -1,28 +1,38 @@
 #include "neural_net.h"
 
-double sum(double x, double acc) {
-    return acc + x;
+#define NUM_OF_LAYERS   3
+
+size_t layer_config[NUM_OF_LAYERS] = {49, 14, 3};
+
+char *to_str(int x) {
+    int len = 0;
+
+    for (int i = x; i > 0; i /= 10, len++);
+
+    char *buf = (char*)malloc(len + 1);
+    buf[len] = '\0';
+
+    for (size_t i = 0; i < len; i++, x /= 10) {
+        buf[len - i - 1] = (char)(x % 10) + '0';
+    }
+
+    return buf;
 }
 
 int main() {
-    DoubleVector_t *vector = create_double_vector(10);
+    DoubleVector_t *input_vector = create_double_vector(49), *expected_vector = create_double_vector(3);
+    NeuralNet_t *net = create_neural_net(NUM_OF_LAYERS, layer_config);
+    read_test(input_vector, expected_vector, "../input");
 
-    set_value(vector, 0, 1);
-    set_value(vector, 1, 2);
-    set_value(vector, 2, 3);
-    set_value(vector, 3, 4);
-    set_value(vector, 4, 5);
-    set_value(vector, 5, 6);
-    set_value(vector, 6, 7);
-    set_value(vector, 7, 8);
-    set_value(vector, 8, 9);
-    set_value(vector, 9, 10);
+    set_input(net, input_vector);
+    set_expected(net, expected_vector);
 
-    print_vector(vector);
+    train(net);
+    printf("%zd\n", test(net));
 
-    printf("%f\n", fold(vector, &sum, 0));
-
-    free_double_vector(vector);
+    free_neural_net(net);
+    free(input_vector);
+    free(expected_vector);
 
     return 0;
 }
